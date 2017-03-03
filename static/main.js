@@ -1,89 +1,160 @@
-var chart1;
-var chart2;
-var chart3;
+// var chart1;
+// var chart2;
+// var chart3;
 
-function stackedArea(traces) {
-    for(var i=1; i<traces.length; i++) {
-        for(var j=0; j<(Math.min(traces[i]['y'].length, traces[i-1]['y'].length)); j++) {
-            traces[i]['y'][j] += traces[i-1]['y'][j];
+// var chart4;
+
+function init() {
+    var pDataChart1 = [{ x: [], y: [], type: "scatter" }];
+    var pDataChart2 = [{ x: [], y: [], type: "scatter" }];
+    var pDataChart3 = [{ x: [], y: [], type: "scatter" }];
+    var pDataChart5 = [{ x: [], y: [], type: "scatter" }];
+    var pDataChart4 = [{
+        x: [],
+        autobinx: false,
+        histnorm: 'count',
+        marker: { color: 'rgb(255, 217, 150)' },
+        name: 'control',
+        opacity: 0.75,
+        type: 'histogram',
+        xbins: {
+            end: 1000,
+            size: 1,
+            start: -.5
         }
-    }
-    return traces;
+    }];
+
+
+    Plotly.newPlot('c_gc', pDataChart1, {
+        title: "GC Pauses",
+        yaxis: {
+            title: "Nanoseconds"
+        }
+    });
+    Plotly.newPlot('c_mem', pDataChart2, {
+        title: "Memory Allocated",
+        yaxis: {
+            title: "Bytes"
+        }
+    });
+    Plotly.newPlot('c_thread', pDataChart3, {
+        title: "Threads Num",
+        yaxis: {
+            title: "Num"
+        }
+    });
+    Plotly.newPlot('c_goroutine', pDataChart5, {
+        title: "Goroutine Num",
+        yaxis: {
+            title: "Num"
+        }
+    });
+
+
+    Plotly.newPlot('c_latency', pDataChart4, {
+        bargap: 0.25,
+        bargroupgap: 0.3,
+        // barmode: 'overlay',
+        title: 'SOIP Lantency',
+        xaxis: { title: 'Latency(ms)' },
+        yaxis: { title: 'Count' }
+    });
+
 }
 
-$(function () {
+init();
 
-	$.getJSON('/debug/charts/data?callback=?', function (data) {
-		var pDataChart1 = [{x: [], y: [], type: "scatter"}];
-        
-		for (i = 0; i < data.GcPauses.length; i++) {
-			var d = moment(data.GcPauses[i].Ts).format('HH:mm:ss');
-			pDataChart1[0].x.push(d);
-			pDataChart1[0].y.push(data.GcPauses[i].Value);
-		}
-        
-		chart1 = Plotly.newPlot('container1', pDataChart1, {
-            title: "GC Pauses",
-            yaxis: {
-                title: "Nanoseconds"
-            }
-        });
 
-		var pDataChart2 = [{x: [], y: [], type: "scatter"}];
-        
-		for (i = 0; i < data.BytesAllocated.length; i++) {
-			var d = moment(data.BytesAllocated[i].Ts).format('HH:mm:ss');
-			pDataChart2[0].x.push(d);
-			pDataChart2[0].y.push(data.BytesAllocated[i].Value);
-		}
-        
-		chart2 = Plotly.newPlot('container2', pDataChart2, {
-            title: "Memory Allocated",
-            yaxis: {
-                title: "Bytes"
-            }
-        });
-        
-        var pDataChart3 = [
-            {x: [], y: [], fill: 'tozeroy', name: 'sys', hoverinfo: 'none'},
-            {x: [], y: [], fill: 'tonexty', name: 'user', hoverinfo: 'none'}
-        ];
-        
-		for (i = 0; i < data.CpuUsage.length; i++) {
-			var d = moment(data.CpuUsage[i].Ts).format('HH:mm:ss');
-			pDataChart3[1].x.push(d);
-            pDataChart3[0].x.push(d);
-            pDataChart3[1].y.push(data.CpuUsage[i].User);
-            pDataChart3[0].y.push(data.CpuUsage[i].Sys);
-		}
-        
-        console.log(pDataChart3);
-        pDataChart3 = stackedArea(pDataChart3);
-        console.log(pDataChart3);
-        
-		chart3 = Plotly.newPlot('container3', pDataChart3, {
-            title: "CPU Usage",
-            yaxis: {
-                title: "Seconds"
-            }
-        });
-	});
+function wsurl() {
+    var l = window.location;
+    return ((l.protocol === "https:") ? "wss://" : "ws://") + l.hostname + (((l.port != 80) && (l.port != 443)) ? ":" + l.port : "") + "/debug/charts/data-feed";
+}
 
-	function wsurl() {
-		var l = window.location;
-		return ((l.protocol === "https:") ? "wss://" : "ws://") + l.hostname + (((l.port != 80) && (l.port != 443)) ? ":" + l.port : "") + "/debug/charts/data-feed";
-	}
+ws = new WebSocket(wsurl());
+ws.onopen = function() {
+    ws.onmessage = function(evt) {
+        var data = JSON.parse(evt.data);
+        var t = moment(data.Time).format('HH:mm:ss')
+        switch (data.Name) {
+            case "thread":
+                
+                Plotly.extendTraces('c_thread', {
+                    x: [
+                        [t]
+                    ],
+                    y: [
+                        [data.Value]
+                    ]
+                }, [0], 86400);
+                break;
+            case "goroutine":
+                Plotly.extendTraces('c_goroutine', {
+                    x: [
+                        [t]
+                    ],
+                    y: [
+                        [data.Value]
+                    ]
+                }, [0], 86400);
+                break;
+            case "mem":
+                Plotly.extendTraces('c_mem', {
+                    x: [
+                        [t]
+                    ],
+                    y: [
+                        [data.Value]
+                    ]
+                }, [0], 86400);
+                break;
+            case "gc":
+                Plotly.extendTraces('c_gc', {
+                    x: [
+                        [t]
+                    ],
+                    y: [
+                        [data.Value]
+                    ]
+                }, [0], 86400);
+                break;
+            case "latency":
+                Plotly.extendTraces('c_latency', {
+                    x: [
+                        [data.Value]
+                    ]
+                }, [0], 86400);
+                break;
+        }
 
-	ws = new WebSocket(wsurl());
-	ws.onopen = function () {
-		ws.onmessage = function (evt) {
-			var data = JSON.parse(evt.data);
-            var d = moment(data.Ts).format('HH:mm:ss');
-			if (data.GcPause != 0) {
-                Plotly.extendTraces('container1', {x:[[d]],y:[[data.GcPause]]}, [0], 86400);
-			}
-            Plotly.extendTraces('container2', {x:[[d]],y:[[data.BytesAllocated]]}, [0], 86400);
-            Plotly.extendTraces('container3', {x:[[d], [d]],y:[[data.CpuSys], [data.CpuUser]]}, [0, 1], 86400);
-		}
-	};
-})
+
+        // var d = moment(data.Ts).format('HH:mm:ss');
+        // if (data.GcPause != 0) {
+        //     Plotly.extendTraces('container1', {
+        //         x: [
+        //             [d]
+        //         ],
+        //         y: [
+        //             [data.GcPause]
+        //         ]
+        //     }, [0], 86400);
+        // }
+        // Plotly.extendTraces('container2', {
+        //     x: [
+        //         [d]
+        //     ],
+        //     y: [
+        //         [data.BytesAllocated]
+        //     ]
+        // }, [0], 86400);
+        // Plotly.extendTraces('container3', {
+        //     x: [
+        //         [d],
+        //         [d]
+        //     ],
+        //     y: [
+        //         [data.CpuSys],
+        //         [data.CpuUser]
+        //     ]
+        // }, [0, 1], 86400);
+    }
+};
