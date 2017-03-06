@@ -23,6 +23,13 @@ function init() {
             start: -.5
         }
     }];
+    var pDataChart6 = [{
+        labels: ['<1ms', '1-5ms', '5-10ms', '10-50ms', '50-100ms', '>100ms'],
+        type: 'pie',
+        marker: { colors: ['#f7fcfd', '#e0ecf4', '#bfd3e6', '#9ebcda', '#8c96c6', '#8c6bb1', '#88419d', '#6e016b'] },
+        sort: false,
+        values: ['24', '21', '18', '15', '12', '2', '2', '6']
+    }];
 
 
     Plotly.newPlot('c_gc', pDataChart1, {
@@ -51,13 +58,19 @@ function init() {
     });
 
 
-    Plotly.newPlot('c_latency', pDataChart4, {
+    Plotly.newPlot('c_latency_histo', pDataChart4, {
         bargap: 0.25,
         bargroupgap: 0.3,
         // barmode: 'overlay',
-        title: 'SOIP Lantency',
+        title: 'SOIP Lantency Histogram',
         xaxis: { title: 'Latency(ms)' },
         yaxis: { title: 'Count' }
+    });
+
+    Plotly.newPlot(c_latency_pie, pDataChart6, {
+        title: 'SOIP Lantency Pie_Chart',
+        // xaxis: { title: 'Latency(ms)' },
+        // yaxis: { title: 'Count' }
     });
 
 }
@@ -77,7 +90,7 @@ ws.onopen = function() {
         var t = moment(data.Time).format('HH:mm:ss')
         switch (data.Name) {
             case "thread":
-                
+
                 Plotly.extendTraces('c_thread', {
                     x: [
                         [t]
@@ -85,7 +98,7 @@ ws.onopen = function() {
                     y: [
                         [data.Value]
                     ]
-                }, [0], 86400);
+                }, [0], 100);
                 break;
             case "goroutine":
                 Plotly.extendTraces('c_goroutine', {
@@ -95,7 +108,7 @@ ws.onopen = function() {
                     y: [
                         [data.Value]
                     ]
-                }, [0], 86400);
+                }, [0], 100);
                 break;
             case "mem":
                 Plotly.extendTraces('c_mem', {
@@ -105,7 +118,7 @@ ws.onopen = function() {
                     y: [
                         [data.Value]
                     ]
-                }, [0], 86400);
+                }, [0], 100);
                 break;
             case "gc":
                 Plotly.extendTraces('c_gc', {
@@ -115,46 +128,48 @@ ws.onopen = function() {
                     y: [
                         [data.Value]
                     ]
-                }, [0], 86400);
+                }, [0], 100);
                 break;
             case "latency":
-                Plotly.extendTraces('c_latency', {
-                    x: [
-                        [data.Value]
-                    ]
-                }, [0], 86400);
+                latencyPush(data.Value);
                 break;
         }
-
-
-        // var d = moment(data.Ts).format('HH:mm:ss');
-        // if (data.GcPause != 0) {
-        //     Plotly.extendTraces('container1', {
-        //         x: [
-        //             [d]
-        //         ],
-        //         y: [
-        //             [data.GcPause]
-        //         ]
-        //     }, [0], 86400);
-        // }
-        // Plotly.extendTraces('container2', {
-        //     x: [
-        //         [d]
-        //     ],
-        //     y: [
-        //         [data.BytesAllocated]
-        //     ]
-        // }, [0], 86400);
-        // Plotly.extendTraces('container3', {
-        //     x: [
-        //         [d],
-        //         [d]
-        //     ],
-        //     y: [
-        //         [data.CpuSys],
-        //         [data.CpuUser]
-        //     ]
-        // }, [0, 1], 86400);
     }
 };
+
+
+var latency_histo_delta = []
+var latency_pie_values = [0, 0, 0, 0, 0, 0]
+
+
+function latencyPush(latency) {
+    latency_histo_delta.push(latency)
+    if (latency < 1) {
+        latency_pie_values[0]++
+    } else if (1 <= latency && latency < 5) {
+        latency_pie_values[1]++
+    } else if (5 <= latency && latency < 10) {
+        latency_pie_values[2]++
+    } else if (10 <= latency && latency < 50) {
+        latency_pie_values[3]++
+    } else if (50 <= latency && latency < 100) {
+        latency_pie_values[4]++
+    } else {
+        latency_pie_values[5]++
+    }
+}
+
+if (ws != undefined) {
+    var latency_interval = setInterval(function() {
+        if (latency_histo_delta.length > 0)  {
+            Plotly.extendTraces('c_latency_histo', {
+                x: [
+                    latency_histo_delta
+                ]
+            }, [0], -1);
+            latencys = []
+        }
+        c_latency_pie.data[0].values = latency_pie_values
+        Plotly.redraw(c_latency_pie);
+    }, 1000);
+}
